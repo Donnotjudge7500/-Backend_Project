@@ -1,4 +1,6 @@
 import mongoose, { Schema } from 'mongoose';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
 
 const userSchema = new Schema({
     username: {
@@ -52,5 +54,43 @@ const userSchema = new Schema({
 },
 { timestamps: true });
 
+userSchema.pre("save", async function (next) {
+    if (!this.isModified("password")) return next(); // When the password field is modified only then the encryption execute otherwise it returns simply next().
+    this.password = bcrypt.hash(this.password, 10) 
+    next()
+})
+
+// Designind the custom method.(middleware..)
+userSchema.methods.isPasswordCorrect = async function (password) {
+    return await bcrypt.compare(password, this.password)
+}
+
+// Designing the custom method for jwt tokens.
+userSchema.methods.generateAccessToken = function () {
+    return jwt.sign(
+        {
+            _id: this._id,
+            email: this.email,
+            username: this.username,
+            fullName: this.fullname
+        },
+        process.env.ACCESS_TOKEN_SECRET,
+        {
+            expiresIn: process.env.ACCESS_TOKEN_EXPIRY 
+        }
+    )
+}
+
+userSchema.methods.generateRefreshToken = function () {
+    return jwt.sign(
+        {
+            _id: this._id,
+        },
+        process.env.REFRESH_TOKEN_SECRET,
+        {
+            expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+        }
+    )
+}
 
 export const User = mongoose.model("User", userSchema);
